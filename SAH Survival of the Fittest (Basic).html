@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SAH Survival of the Fittest (Basic)</title>
+<style>
+:root{
+  --bg:#f6f5f1; --card:#ffffff; --border:#dedad0; --text:#1c1b18; --sub:#6b6858; --muted:#8f8c7d;
+  --accent:#185fa5; --accent-bg:#e6f1fb; --danger:#a32d2d; --danger-bg:#fcebeb; --warn:#854f0b; --warn-bg:#faeeda; --good:#27500a; --good-bg:#eaf3de;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --bg:#171613; --card:#211f1b; --border:#3a382f; --text:#f1efe8; --sub:#b4b2a9; --muted:#888780;
+    --accent:#85b7eb; --accent-bg:#0c447c; --danger:#f09595; --danger-bg:#501313; --warn:#fac775; --warn-bg:#412402; --good:#97c459; --good-bg:#173404;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#171613; --card:#211f1b; --border:#3a382f; --text:#f1efe8; --sub:#b4b2a9; --muted:#888780;
+  --accent:#85b7eb; --accent-bg:#0c447c; --danger:#f09595; --danger-bg:#501313; --warn:#fac775; --warn-bg:#412402; --good:#97c459; --good-bg:#173404;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Roboto,sans-serif;padding:1rem 1rem 2rem;}
+h1{font-size:19px;font-weight:600;margin:0 0 .2rem}
+.sub{color:var(--sub);font-size:13px;margin:0 0 1rem;line-height:1.5}
+.crit{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem}
+.pill{font-size:11px;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 10px;color:var(--sub)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:1rem}
+button{background:var(--accent-bg);color:var(--accent);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+button:active{transform:scale(.97)}
+button.ghost{background:transparent;color:var(--text)}
+.status{font-size:12px;color:var(--sub);margin-left:auto;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.grid2{grid-template-columns:1.1fr .9fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+.card h2{font-size:14px;margin:0 0 8px;font-weight:600}
+canvas{max-width:100%}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:5px 4px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:11px}
+.name{font-weight:600}
+.tag{font-size:10px;border-radius:5px;padding:1px 5px;margin-left:4px}
+.tag.new{background:var(--accent-bg);color:var(--accent)}
+.tag.low{background:var(--danger-bg);color:var(--danger)}
+.bar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--border);margin-top:2px;width:70px}
+.bar div{height:100%}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px}
+.stat .n{font-size:18px;font-weight:700}
+.stat .l{font-size:10px;color:var(--muted)}
+.log{max-height:130px;overflow-y:auto;font-size:11px;line-height:1.6;color:var(--sub)}
+.log b{color:var(--text)}
+.insight{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:12px;margin-top:10px;display:none}
+</style>
+</head>
+<body>
+<h1>SAH Survival of the Fittest (Basic)</h1>
+<p class="sub">Each week, 20 setters dial leads. An appointment only counts as <b>fully qualified</b> if the owner-occupant meets all five criteria below. Every quarter (12 weeks), the bottom 3 by booked-appointment count get fired and replaced. Watch what that pressure does to lead quality over time.</p>
+<div class="crit">
+<span class="pill">Property in good condition</span><span class="pill">Owner (not renter)</span><span class="pill">Not a cash-buyer lead</span><span class="pill">Motivated to sell ≤12mo</span><span class="pill">Will take phone/in-person appt</span>
+</div>
+<div class="controls">
+<button id="play"><i></i>▶ Run</button>
+<button class="ghost" id="step">Step week</button>
+<button class="ghost" id="reset">Reset</button>
+<span class="status" id="status">Week 0 · Quarter 1</span>
+</div>
+<div class="stats">
+<div class="stat"><div class="n" id="s1">0</div><div class="l">Appts this week</div></div>
+<div class="stat"><div class="n" id="s2">0%</div><div class="l">Fully qualified</div></div>
+<div class="stat"><div class="n" id="s3">0.50</div><div class="l">Avg team integrity</div></div>
+</div>
+<div class="grid2">
+<div class="card">
+<h2>Weekly output: qualified vs. stretched appointments</h2>
+<canvas id="chartVol" height="170"></canvas>
+<h2 style="margin-top:14px">Team integrity trend</h2>
+<canvas id="chartInt" height="120"></canvas>
+<div class="insight" id="insight"></div>
+</div>
+<div class="card">
+<h2>Leaderboard (this quarter)</h2>
+<table><thead><tr><th>Setter</th><th>Appts</th><th>Qual. mix</th></tr></thead><tbody id="board"></tbody></table>
+<div class="insight" style="background:var(--good-bg);color:var(--good)" id="spotlight"></div>
+<h2 style="margin-top:12px">Event log</h2>
+<div class="log" id="log"></div>
+</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const NAMES=["Alicia","Brandon","Carmen","Derek","Elena","Frank","Gina","Hector","Isla","Jordan","Kayla","Liam","Marta","Noah","Olivia","Priya","Quinn","Reza","Sana","Tyler"];
+let week=0, playing=false, timer=null, setters=[], hist=[], nextId=1;
+function rand(a,b){return a+Math.random()*(b-a)}
+function mkSetter(name){
+  const s={id:nextId++,name,skill:rand(.3,.9),integrity:rand(.2,.95),
+    dial:rand(.7,1.5),rapport:rand(.7,1.5),refer:rand(.7,1.5),
+    qAppts:0,qQual:0,qStretch:0,total:0,rookie:true};
+  const t=[['dial',s.dial],['rapport',s.rapport],['refer',s.refer]].sort((a,b)=>b[1]-a[1])[0][0];
+  s.tactic=t==='dial'?'High dial volume':t==='rapport'?'Strong rapport/script':'Referral-driven leads';
+  return s;
+}
+function reset(){
+  setters=NAMES.map(n=>mkSetter(n));
+  week=0; hist=[]; playing=false; clearInterval(timer);
+  document.getElementById('log').innerHTML='';
+  document.getElementById('play').innerHTML='▶ Run';
+  log('Floor opens. 20 reps start fresh. Bottom 3 each quarter get fired.');
+  renderAll();
+}
+function log(msg){
+  const el=document.getElementById('log');
+  el.innerHTML=`<div><b>Wk ${week}:</b> ${msg}</div>`+el.innerHTML;
+}
+function simWeek(){
+  week++;
+  const progress=((week-1)%12)/12;
+  const sorted=[...setters].sort((a,b)=>a.qAppts-b.qAppts);
+  const bottomSet=new Set(sorted.slice(0,6).map(s=>s.id));
+  let wQual=0,wStretch=0;
+  setters.forEach(s=>{
+    const pressure=(bottomSet.has(s.id)?1:0.45)*(0.25+progress);
+    const dials=(25+s.skill*25)*s.dial;
+    const conv=Math.round(dials*(0.15+s.skill*0.2)*s.rapport);
+    const trueRate=0.16*(0.55+0.5*s.refer);
+    for(let i=0;i<conv;i++){
+      if(Math.random()<trueRate){s.qAppts++;s.qQual++;s.total++;wQual++;continue;}
+      const fudge=(1-s.integrity)*0.55*(0.3+pressure);
+      if(Math.random()<fudge){s.qAppts++;s.qStretch++;s.total++;wStretch++;}
+    }
+  });
+  const avgInt=setters.reduce((a,s)=>a+s.integrity,0)/setters.length;
+  hist.push({week,qual:wQual,stretch:wStretch,integrity:avgInt});
+  if(week%12===0){
+    const fired=[...setters].sort((a,b)=>a.qAppts-b.qAppts).slice(0,3);
+    fired.forEach(f=>{
+      log(`<span style="color:var(--danger)">${f.name} fired</span> (${f.qAppts} appts this quarter). Replaced by a rookie.`);
+      const idx=setters.findIndex(s=>s.id===f.id);
+      setters[idx]=mkSetter(f.name);
+    });
+    setters.forEach(s=>{s.qAppts=0;s.qQual=0;s.qStretch=0;s.rookie=false});
+    log(`Quarter ${week/12} closed. New quarter begins.`);
+  }
+  renderAll();
+}
+let cVol,cInt;
+function initCharts(){
+  const ctx1=document.getElementById('chartVol').getContext('2d');
+  const ctx2=document.getElementById('chartInt').getContext('2d');
+  const textColor=getComputedStyle(document.body).getPropertyValue('--sub');
+  cVol=new Chart(ctx1,{type:'bar',data:{labels:[],datasets:[
+    {label:'Fully qualified',data:[],backgroundColor:'#639922'},
+    {label:'Stretched/fudged',data:[],backgroundColor:'#d85a30'}]},
+    options:{responsive:true,scales:{x:{stacked:true,ticks:{color:textColor,maxTicksLimit:8}},y:{stacked:true,ticks:{color:textColor}}},plugins:{legend:{labels:{color:textColor,font:{size:11}}}}}});
+  cInt=new Chart(ctx2,{type:'line',data:{labels:[],datasets:[{label:'Avg integrity',data:[],borderColor:'#378add',tension:.3,pointRadius:0}]},
+    options:{responsive:true,scales:{x:{ticks:{color:textColor,maxTicksLimit:8}},y:{min:0,max:1,ticks:{color:textColor}}},plugins:{legend:{display:false}}}});
+}
+function renderAll(){
+  document.getElementById('status').textContent=`Week ${week} · Quarter ${Math.floor(week/12)+1}`;
+  const last=hist[hist.length-1]||{qual:0,stretch:0,integrity:.5};
+  document.getElementById('s1').textContent=last.qual+last.stretch;
+  const pct=last.qual+last.stretch>0?Math.round(100*last.qual/(last.qual+last.stretch)):0;
+  document.getElementById('s2').textContent=pct+'%';
+  document.getElementById('s3').textContent=last.integrity.toFixed(2);
+  const board=[...setters].sort((a,b)=>b.qAppts-a.qAppts);
+  document.getElementById('board').innerHTML=board.map(s=>{
+    const tot=s.qQual+s.qStretch||1;
+    const qp=Math.round(100*s.qQual/tot);
+    return `<tr><td class="name">${s.name}${s.rookie?'<span class="tag new">new</span>':''}${board.indexOf(s)>=17?'<span class="tag low">bottom</span>':''}<br><span style="font-size:10px;color:var(--muted)">${s.tactic}, integrity ${s.integrity.toFixed(2)}</span></td><td>${s.qAppts}</td>
+    <td><div class="bar"><div style="width:${qp}%;background:#639922"></div><div style="width:${100-qp}%;background:#d85a30"></div></div></td></tr>`;
+  }).join('');
+  const highInt=setters.filter(s=>s.integrity>0.65).sort((a,b)=>b.qAppts-a.qAppts)[0];
+  const spot=document.getElementById('spotlight');
+  if(highInt&&highInt.qAppts>0){
+    const rankPos=board.indexOf(highInt)+1;
+    spot.style.display='block';
+    spot.innerHTML=`Best high-integrity rep: <b>${highInt.name}</b> (integrity ${highInt.integrity.toFixed(2)}) ranks #${rankPos}/20 with ${highInt.qAppts} appts, leaning on <b>${highInt.tactic.toLowerCase()}</b> — not fudging.`;
+  }else{spot.style.display='none';}
+  cVol.data.labels=hist.map(h=>'W'+h.week);
+  cVol.data.datasets[0].data=hist.map(h=>h.qual);
+  cVol.data.datasets[1].data=hist.map(h=>h.stretch);
+  cVol.update('none');
+  cInt.data.labels=hist.map(h=>'W'+h.week);
+  cInt.data.datasets[0].data=hist.map(h=>h.integrity);
+  cInt.update('none');
+  const ins=document.getElementById('insight');
+  if(hist.length>=24){
+    const early=hist.slice(0,12), recent=hist.slice(-12);
+    const eRate=early.reduce((a,h)=>a+h.qual,0)/early.reduce((a,h)=>a+h.qual+h.stretch,1);
+    const rRate=recent.reduce((a,h)=>a+h.qual,0)/recent.reduce((a,h)=>a+h.qual+h.stretch,1);
+    if(rRate<eRate-0.03){
+      ins.style.display='block';
+      ins.textContent=`Trend: qualified-appointment share has dropped from ${Math.round(eRate*100)}% to ${Math.round(rRate*100)}%. Ranking reps on raw appointment count — not quality — is rewarding volume over rigor, and low-integrity reps who fudge are outlasting careful ones.`;
+    }
+  }
+}
+document.getElementById('step').onclick=()=>simWeek();
+document.getElementById('reset').onclick=reset;
+document.getElementById('play').onclick=function(){
+  playing=!playing;
+  this.innerHTML=playing?'⏸ Pause':'▶ Run';
+  if(playing){timer=setInterval(simWeek,450);}else{clearInterval(timer);}
+};
+initCharts();
+reset();
+</script>
+</body>
+</html>

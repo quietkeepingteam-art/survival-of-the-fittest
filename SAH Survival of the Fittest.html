@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SAH Survival of the Fittest</title>
+<style>
+:root{
+  --bg:#f6f5f1; --card:#ffffff; --border:#dedad0; --text:#1c1b18; --sub:#6b6858; --muted:#8f8c7d;
+  --accent:#185fa5; --accent-bg:#e6f1fb; --danger:#a32d2d; --danger-bg:#fcebeb; --warn:#854f0b; --warn-bg:#faeeda; --good:#27500a; --good-bg:#eaf3de;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --bg:#171613; --card:#211f1b; --border:#3a382f; --text:#f1efe8; --sub:#b4b2a9; --muted:#888780;
+    --accent:#85b7eb; --accent-bg:#0c447c; --danger:#f09595; --danger-bg:#501313; --warn:#fac775; --warn-bg:#412402; --good:#97c459; --good-bg:#173404;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#171613; --card:#211f1b; --border:#3a382f; --text:#f1efe8; --sub:#b4b2a9; --muted:#888780;
+  --accent:#85b7eb; --accent-bg:#0c447c; --danger:#f09595; --danger-bg:#501313; --warn:#fac775; --warn-bg:#412402; --good:#97c459; --good-bg:#173404;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Roboto,sans-serif;padding:1rem 1rem 2rem;}
+h1{font-size:19px;font-weight:600;margin:0 0 .2rem}
+.sub{color:var(--sub);font-size:13px;margin:0 0 1rem;line-height:1.5}
+button{background:var(--accent-bg);color:var(--accent);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+button:active{transform:scale(.97)}
+button.ghost{background:transparent;color:var(--text)}
+button:disabled{opacity:.5;cursor:default}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+.card h2{font-size:14px;margin:0 0 8px;font-weight:600}
+.agent{border-bottom:1px solid var(--border);padding:8px 0}
+.agent:last-child{border-bottom:none}
+.agent label{font-size:12px;font-weight:600;display:block;margin-bottom:4px}
+.agent textarea{width:100%;min-height:44px;font-size:12px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;resize:vertical}
+.agent .hint{font-size:10px;color:var(--muted);margin-top:2px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:1rem}
+.status{font-size:12px;color:var(--sub)}
+.hidden{display:none}
+.pill{font-size:11px;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 10px;color:var(--sub)}
+.crit{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.grid2{grid-template-columns:1.1fr .9fr}}
+canvas{max-width:100%}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:5px 4px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:11px}
+.name{font-weight:600}
+.tag{font-size:10px;border-radius:5px;padding:1px 5px;margin-left:4px}
+.tag.new{background:var(--accent-bg);color:var(--accent)}
+.tag.low{background:var(--danger-bg);color:var(--danger)}
+.tag.script{background:var(--good-bg);color:var(--good)}
+.bar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--border);margin-top:2px;width:70px}
+.bar div{height:100%}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px}
+.stat .n{font-size:18px;font-weight:700}
+.stat .l{font-size:10px;color:var(--muted)}
+.log{max-height:130px;overflow-y:auto;font-size:11px;line-height:1.6;color:var(--sub)}
+.insight{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:10px;display:none}
+</style>
+</head>
+<body>
+<h1>SAH Survival of the Fittest</h1>
+<p class="sub">Paste up to three recent call scripts per rep — separate each one with a line containing just <code>---</code> (or attach separate files). Claude scores them for rapport/warmth and how rigorously they verify all five qualifying criteria (vs. leading the lead into a yes). Reps left blank get randomized traits, as a control group.</p>
+
+<div id="inputStage">
+<div class="card" id="agentList"></div>
+<div class="controls">
+<button id="analyzeBtn">Analyze scripts and build roster ↗</button>
+<button class="ghost" id="skipBtn">Skip — randomize everyone</button>
+<button class="ghost" id="saveRosterBtn">Save roster ↗</button>
+<button class="ghost" id="loadRosterBtn">Load roster</button>
+<input type="file" id="loadRosterInput" accept=".json" style="display:none" />
+</div>
+<div class="status" id="analyzeStatus"></div>
+</div>
+
+<div id="simStage" class="hidden">
+<div class="crit">
+<span class="pill">Good condition</span><span class="pill">Owner not renter</span><span class="pill">Not cash-buyer</span><span class="pill">Motivated ≤12mo</span><span class="pill">Will take appt</span>
+</div>
+<div class="controls">
+<button id="play">▶ Run</button>
+<button class="ghost" id="step">Step week</button>
+<button class="ghost" id="backBtn">← Edit scripts</button>
+<button class="ghost" id="exportBtn">Export run (CSV) ↗</button>
+<span class="status" id="status" style="margin-left:auto"></span>
+</div>
+<div class="stats">
+<div class="stat"><div class="n" id="s1">0</div><div class="l">Appts this week</div></div>
+<div class="stat"><div class="n" id="s2">0%</div><div class="l">Fully qualified</div></div>
+<div class="stat"><div class="n" id="s3">0.50</div><div class="l">Avg team integrity</div></div>
+</div>
+<div class="grid2">
+<div class="card">
+<h2>Weekly output: qualified vs. stretched</h2>
+<canvas id="chartVol" height="170"></canvas>
+<h2 style="margin-top:14px">Team integrity trend</h2>
+<canvas id="chartInt" height="120"></canvas>
+</div>
+<div class="card">
+<h2>Leaderboard (this quarter)</h2>
+<table><thead><tr><th>Setter</th><th>Appts</th><th>Qual. mix</th></tr></thead><tbody id="board"></tbody></table>
+<div class="insight" style="background:var(--good-bg);color:var(--good)" id="spotlight"></div>
+<h2 style="margin-top:12px">Event log</h2>
+<div class="log" id="log"></div>
+</div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const NAMES=["Alicia","Brandon","Carmen","Derek","Elena","Frank","Gina","Hector","Isla","Jordan","Kayla","Liam","Marta","Noah","Olivia","Priya","Quinn","Reza","Sana","Tyler"];
+function rand(a,b){return a+Math.random()*(b-a)}
+
+const listEl=document.getElementById('agentList');
+listEl.innerHTML=NAMES.map((n,i)=>`<div class="agent">
+<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+<input id="name${i}" value="${n}" style="font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;padding:4px 6px;background:var(--bg);color:var(--text);width:140px" />
+<button class="ghost" type="button" style="padding:4px 8px;font-size:11px" onclick="document.getElementById('filein${i}').click()">Attach files</button>
+<input type="file" id="filein${i}" multiple accept=".txt,.md" style="display:none" onchange="attachFiles(${i},this.files)" />
+</div>
+<textarea id="script${i}" placeholder="Paste a transcript, then on its own line type --- before pasting the next one. Up to 3 transcripts. Leave empty to randomize."></textarea>
+<div class="hint" id="hint${i}"></div></div>`).join('');
+function attachFiles(i,files){
+  if(!files||!files.length) return;
+  const ta=document.getElementById('script'+i);
+  const readers=[...files].map(f=>f.text());
+  Promise.all(readers).then(texts=>{
+    const combined=texts.map((t,k)=>`--- ${files[k].name} ---\n${t.trim()}`).join('\n\n');
+    ta.value=(ta.value.trim()?ta.value.trim()+'\n\n':'')+combined;
+    document.getElementById('hint'+i).textContent=`${files.length} file(s) attached.`;
+  }).catch(()=>{ document.getElementById('hint'+i).textContent='Could not read one or more files.'; });
+}
+function getNames(){ return NAMES.map((n,i)=>{ const v=document.getElementById('name'+i).value.trim(); return v||n; }); }
+
+let claudeSample=null, claudeDownloads=null;
+async function initCaps(){
+  try{ if(window.claude&&window.claude.use){ claudeSample=await window.claude.use('sample'); } }catch(e){ claudeSample=null; }
+  try{ if(window.claude&&window.claude.use){ claudeDownloads=await window.claude.use('downloads'); } }catch(e){ claudeDownloads=null; }
+}
+const capsReady=initCaps();
+
+// Save a file via the downloads capability; if unavailable/failed, show a copy-paste fallback.
+async function saveFile(filename,data,onMsg){
+  await capsReady;
+  if(claudeDownloads){
+    try{ await claudeDownloads.save({filename,data}); onMsg('Saved '+filename+'.'); return; }
+    catch(e){
+      if(e&&e.code==='declined'){ onMsg('Save cancelled.'); return; }
+      onMsg('Direct save failed ('+((e&&e.code)||'error')+'). Use the copy box below instead.');
+    }
+  }else{ onMsg('Direct downloads are not available in this view. Use the copy box below instead.'); }
+  showFallback(filename,data);
+}
+function showFallback(filename,data){
+  let box=document.getElementById('fallbackBox');
+  if(!box){
+    box=document.createElement('div'); box.id='fallbackBox'; box.className='card';
+    box.innerHTML='<h2 id="fbTitle"></h2><textarea id="fbText" readonly style="width:100%;min-height:140px;font-size:11px;font-family:monospace;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);padding:6px"></textarea><div class="controls" style="margin-top:6px"><button id="fbCopy">Copy to clipboard</button><button class="ghost" id="fbClose">Close</button></div>';
+    document.body.appendChild(box);
+    document.getElementById('fbClose').onclick=()=>box.remove();
+    document.getElementById('fbCopy').onclick=async()=>{ const t=document.getElementById('fbText'); t.select(); try{ await navigator.clipboard.writeText(t.value); }catch(e){ document.execCommand('copy'); } document.getElementById('fbCopy').textContent='Copied'; };
+  }
+  document.getElementById('fbTitle').textContent='Copy this into a file named '+filename;
+  document.getElementById('fbText').value=data;
+  box.scrollIntoView({behavior:'smooth'});
+}
+
+async function analyzeScript(text){
+  const prompt=`You are grading a real-estate cold-calling script on two dimensions. Return ONLY strict JSON, no prose, no markdown fences.
+Dimensions:
+- rapport: 0 to 1. Warmth, listening, natural conversation, handling objections without pressure.
+- rigor: 0 to 1. Does the script actually verify ALL FIVE of: property in good condition, talking to the owner (not a renter), not a cash-buyer lead, motivated to sell within 12 months, willing to book a phone or in-person appointment. Penalize scripts that lead the prospect toward "yes" instead of genuinely checking, or that skip criteria to book faster.
+Output JSON exactly like: {"rapport":0.7,"rigor":0.6,"notes":"one short sentence"}
+The text below may contain up to 3 separate transcripts, each separated by a line of dashes (---). Judge the rep's pattern across all of them together, not just the first one.
+SCRIPT:
+"""${text.slice(0,7000)}"""`;
+  const res=await claudeSample.json(prompt,{modelTier:'quick'});
+  return res;
+}
+
+document.getElementById('analyzeBtn').onclick=async()=>{
+  const statusEl=document.getElementById('analyzeStatus');
+  const names=getNames();
+  window.__names=names;
+  const entries=names.map((n,i)=>({i,name:n,text:document.getElementById('script'+i).value.trim()})).filter(e=>e.text.length>20);
+  window.__traits={};
+  await capsReady;
+  if(entries.length===0 || !claudeSample){
+    if(entries.length>0 && !claudeSample){ statusEl.textContent='Script scoring is unavailable in this view — randomizing everyone instead.'; }
+    startSim(); return;
+  }
+  document.getElementById('analyzeBtn').disabled=true;
+  for(let k=0;k<entries.length;k++){
+    const e=entries[k];
+    statusEl.textContent=`Analyzing ${e.name}'s scripts (${k+1}/${entries.length})...`;
+    try{
+      const r=await analyzeScript(e.text);
+      window.__traits[e.name]={rapport:Math.max(0,Math.min(1,+r.rapport||0.5)),rigor:Math.max(0,Math.min(1,+r.rigor||0.5)),notes:r.notes||''};
+      document.getElementById('hint'+e.i).textContent=`Scored — rapport ${window.__traits[e.name].rapport.toFixed(2)}, rigor ${window.__traits[e.name].rigor.toFixed(2)}`;
+    }catch(err){
+      document.getElementById('hint'+e.i).textContent='Analysis failed — randomized instead.';
+    }
+  }
+  statusEl.textContent='Roster built.';
+  startSim();
+};
+document.getElementById('skipBtn').onclick=()=>{ window.__names=getNames(); window.__traits={}; startSim(); };
+
+document.getElementById('saveRosterBtn').onclick=async()=>{
+  const names=getNames();
+  const scripts=names.map((n,i)=>document.getElementById('script'+i).value);
+  const payload={version:1,savedAt:new Date().toISOString(),names,scripts,traits:window.__traits||{}};
+  const statusEl=document.getElementById('analyzeStatus');
+  await saveFile('setter-roster.json',JSON.stringify(payload,null,2),m=>statusEl.textContent=m);
+};
+document.getElementById('loadRosterBtn').onclick=()=>document.getElementById('loadRosterInput').click();
+document.getElementById('loadRosterInput').onchange=(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      (data.names||[]).forEach((n,i)=>{ const el=document.getElementById('name'+i); if(el) el.value=n; });
+      (data.scripts||[]).forEach((s,i)=>{ const el=document.getElementById('script'+i); if(el) el.value=s; });
+      window.__traits=data.traits||{};
+      Object.keys(window.__traits).forEach(name=>{
+        const idx=(data.names||[]).indexOf(name);
+        if(idx>-1){ const t=window.__traits[name]; document.getElementById('hint'+idx).textContent=`Scored — rapport ${(+t.rapport).toFixed(2)}, rigor ${(+t.rigor).toFixed(2)}`; }
+      });
+      document.getElementById('analyzeStatus').textContent='Roster loaded from file.';
+    }catch(err){ document.getElementById('analyzeStatus').textContent='Could not read that file — is it a saved roster JSON?'; }
+  };
+  reader.readAsText(f);
+};
+document.getElementById('backBtn').onclick=()=>{
+  document.getElementById('simStage').classList.add('hidden');
+  document.getElementById('inputStage').classList.remove('hidden');
+  clearInterval(timer); playing=false;
+};
+
+let week=0, playing=false, timer=null, setters=[], hist=[], nextId=1;
+function mkSetter(name){
+  const scripted=window.__traits && window.__traits[name];
+  const s={id:nextId++,name,skill:rand(.3,.9),
+    integrity: scripted? (0.15+0.8*scripted.rigor) : rand(.2,.95),
+    dial:rand(.7,1.5),
+    rapport: scripted? (0.6+0.9*scripted.rapport) : rand(.7,1.5),
+    refer:rand(.7,1.5),
+    fromScript:!!scripted, notes: scripted?scripted.notes:'',
+    qAppts:0,qQual:0,qStretch:0,total:0,rookie:true};
+  const t=[['dial',s.dial],['rapport',s.rapport],['refer',s.refer]].sort((a,b)=>b[1]-a[1])[0][0];
+  s.tactic=t==='dial'?'High dial volume':t==='rapport'?'Strong rapport/script':'Referral-driven leads';
+  return s;
+}
+function startSim(){
+  document.getElementById('inputStage').classList.add('hidden');
+  document.getElementById('simStage').classList.remove('hidden');
+  reset();
+}
+function log(msg){
+  const el=document.getElementById('log');
+  el.innerHTML=`<div><b>Wk ${week}:</b> ${msg}</div>`+el.innerHTML;
+}
+function reset(){
+  const names=window.__names||NAMES;
+  setters=names.map(n=>mkSetter(n));
+  week=0; hist=[]; playing=false; clearInterval(timer);
+  document.getElementById('log').innerHTML='';
+  document.getElementById('play').innerHTML='▶ Run';
+  log('Floor opens. Bottom 3 each quarter get fired and replaced with randomized rookies.');
+  if(!cVol) initCharts();
+  renderAll();
+}
+function simWeek(){
+  week++;
+  const progress=((week-1)%12)/12;
+  const sorted=[...setters].sort((a,b)=>a.qAppts-b.qAppts);
+  const bottomSet=new Set(sorted.slice(0,6).map(s=>s.id));
+  let wQual=0,wStretch=0;
+  setters.forEach(s=>{
+    const pressure=(bottomSet.has(s.id)?1:0.45)*(0.25+progress);
+    const dials=(25+s.skill*25)*s.dial;
+    const conv=Math.round(dials*(0.15+s.skill*0.2)*s.rapport);
+    const trueRate=0.16*(0.55+0.5*s.refer);
+    for(let i=0;i<conv;i++){
+      if(Math.random()<trueRate){s.qAppts++;s.qQual++;s.total++;wQual++;continue;}
+      const fudge=(1-s.integrity)*0.55*(0.3+pressure);
+      if(Math.random()<fudge){s.qAppts++;s.qStretch++;s.total++;wStretch++;}
+    }
+  });
+  const avgInt=setters.reduce((a,s)=>a+s.integrity,0)/setters.length;
+  hist.push({week,qual:wQual,stretch:wStretch,integrity:avgInt});
+  if(week%12===0){
+    const fired=[...setters].sort((a,b)=>a.qAppts-b.qAppts).slice(0,3);
+    fired.forEach(f=>{
+      log(`<span style="color:var(--danger)">${f.name} fired</span> (${f.qAppts} appts). Replaced by a randomized rookie.`);
+      const idx=setters.findIndex(s=>s.id===f.id);
+      setters[idx]=mkSetter(f.name+' II');
+    });
+    setters.forEach(s=>{s.qAppts=0;s.qQual=0;s.qStretch=0;s.rookie=false});
+    log(`Quarter ${week/12} closed.`);
+  }
+  renderAll();
+}
+let cVol,cInt;
+function initCharts(){
+  const ctx1=document.getElementById('chartVol').getContext('2d');
+  const ctx2=document.getElementById('chartInt').getContext('2d');
+  const textColor=getComputedStyle(document.body).getPropertyValue('--sub');
+  cVol=new Chart(ctx1,{type:'bar',data:{labels:[],datasets:[
+    {label:'Fully qualified',data:[],backgroundColor:'#639922'},
+    {label:'Stretched/fudged',data:[],backgroundColor:'#d85a30'}]},
+    options:{responsive:true,scales:{x:{stacked:true,ticks:{color:textColor,maxTicksLimit:8}},y:{stacked:true,ticks:{color:textColor}}},plugins:{legend:{labels:{color:textColor,font:{size:11}}}}}});
+  cInt=new Chart(ctx2,{type:'line',data:{labels:[],datasets:[{label:'Avg integrity',data:[],borderColor:'#378add',tension:.3,pointRadius:0}]},
+    options:{responsive:true,scales:{x:{ticks:{color:textColor,maxTicksLimit:8}},y:{min:0,max:1,ticks:{color:textColor}}},plugins:{legend:{display:false}}}});
+}
+function renderAll(){
+  document.getElementById('status').textContent=`Week ${week} · Quarter ${Math.floor(week/12)+1}`;
+  const last=hist[hist.length-1]||{qual:0,stretch:0,integrity:.5};
+  document.getElementById('s1').textContent=last.qual+last.stretch;
+  const pct=last.qual+last.stretch>0?Math.round(100*last.qual/(last.qual+last.stretch)):0;
+  document.getElementById('s2').textContent=pct+'%';
+  document.getElementById('s3').textContent=last.integrity.toFixed(2);
+  const board=[...setters].sort((a,b)=>b.qAppts-a.qAppts);
+  document.getElementById('board').innerHTML=board.map(s=>{
+    const tot=s.qQual+s.qStretch||1;
+    const qp=Math.round(100*s.qQual/tot);
+    return `<tr><td class="name">${s.name}${s.fromScript?'<span class="tag script">script</span>':''}${s.rookie?'':''}${board.indexOf(s)>=17?'<span class="tag low">bottom</span>':''}<br><span style="font-size:10px;color:var(--muted)">${s.tactic}, integrity ${s.integrity.toFixed(2)}</span></td><td>${s.qAppts}</td>
+    <td><div class="bar"><div style="width:${qp}%;background:#639922"></div><div style="width:${100-qp}%;background:#d85a30"></div></div></td></tr>`;
+  }).join('');
+  const highInt=setters.filter(s=>s.integrity>0.65).sort((a,b)=>b.qAppts-a.qAppts)[0];
+  const spot=document.getElementById('spotlight');
+  if(highInt&&highInt.qAppts>0){
+    const rankPos=board.indexOf(highInt)+1;
+    spot.style.display='block';
+    spot.innerHTML=`Best high-integrity rep: <b>${highInt.name}</b>${highInt.fromScript?' (from your pasted script)':' (randomized)'} — integrity ${highInt.integrity.toFixed(2)}, ranks #${rankPos}/20 with ${highInt.qAppts} appts, leaning on <b>${highInt.tactic.toLowerCase()}</b>.`;
+  }else{spot.style.display='none';}
+  cVol.data.labels=hist.map(h=>'W'+h.week);
+  cVol.data.datasets[0].data=hist.map(h=>h.qual);
+  cVol.data.datasets[1].data=hist.map(h=>h.stretch);
+  cVol.update('none');
+  cInt.data.labels=hist.map(h=>'W'+h.week);
+  cInt.data.datasets[0].data=hist.map(h=>h.integrity);
+  cInt.update('none');
+}
+document.getElementById('step').onclick=()=>simWeek();
+document.getElementById('exportBtn').onclick=async()=>{
+  let csv='week,fully_qualified,stretched_fudged,team_avg_integrity\n';
+  hist.forEach(h=>{ csv+=`${h.week},${h.qual},${h.stretch},${h.integrity.toFixed(3)}\n`; });
+  csv+='\nname,quarter_appts,fully_qualified,stretched,integrity,tactic,from_script\n';
+  [...setters].sort((a,b)=>b.qAppts-a.qAppts).forEach(s=>{
+    csv+=`"${s.name}",${s.qAppts},${s.qQual},${s.qStretch},${s.integrity.toFixed(3)},${s.tactic},${s.fromScript?'yes':'no'}\n`;
+  });
+  await saveFile(`setter-sim-week${week}.csv`,csv,m=>log(m));
+};
+document.getElementById('play').onclick=function(){
+  playing=!playing;
+  this.innerHTML=playing?'⏸ Pause':'▶ Run';
+  if(playing){timer=setInterval(simWeek,450);}else{clearInterval(timer);}
+};
+</script>
+</body>
+</html>
